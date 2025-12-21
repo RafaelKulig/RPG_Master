@@ -1,6 +1,7 @@
 mod db;
+mod campaign;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, builder::OsStr};
 use std::fs;
 
 #[derive(Parser)]
@@ -11,23 +12,41 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Save {text: String},
-    Read,
+    CreateCampaign {
+        name: String,
+    },
+    ListCampaigns,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use campaign::Campaign;
+    use std::path::Path;
+    
     let cli = Cli::parse();
     let data_dir = db::get_data_dir();
-    let file = data_dir.join("test.txt");
+    
 
     match cli.command {
-        Commands::Save { text } => {
-            fs::write(&file, text).unwrap();
-            println!("Arquivo salvo!");
-        }
-        Commands::Read => {
-            let content = fs::read_to_string(&file).unwrap_or("empty".to_string());
-            println!("Conteúdo: {}", content);
+        Commands::CreateCampaign { name } => {
+            let campaign = Campaign { name: name.clone() };
+
+            let file_path = data_dir.join(format!("{}.json", name));
+            let json = serde_json::to_string_pretty(&campaign)?;
+
+            fs::write(file_path, json)?;
+            println!("Campaign created!");
+    }
+        Commands::ListCampaigns => {
+            for entry in fs::read_dir(&data_dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension() == Some(std::ffi::OsStr::new("json")) {
+                    println!(
+                        "{}",
+                        path.file_stem().unwrap().to_string_lossy()
+                    );
+                }
+            }
         }
     }
+    Ok(())
 }
