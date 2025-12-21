@@ -1,8 +1,10 @@
 mod db;
 mod campaign;
+mod error;
 
 use clap::{Parser, Subcommand, builder::OsStr};
 use std::fs;
+use error::AppError;
 
 #[derive(Parser)]
 struct Cli {
@@ -18,7 +20,7 @@ enum Commands {
     ListCampaigns,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), AppError> {
     use campaign::Campaign;
     use std::path::Path;
     
@@ -28,23 +30,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::CreateCampaign { name } => {
-            let campaign = Campaign { name: name.clone() };
 
             let file_path = data_dir.join(format!("{}.json", name));
-            let json = serde_json::to_string_pretty(&campaign)?;
-
-            fs::write(file_path, json)?;
-            println!("Campaign created!");
+            if file_path.exists() {
+                return Err(AppError::CampaignAlreadyExists(name));
+            }
     }
         Commands::ListCampaigns => {
-            for entry in fs::read_dir(&data_dir).unwrap() {
-                let path = entry.unwrap().path();
+            let mut found = false;
+
+            for entry in fs::read_dir(&data_dir)? {
+                let path = entry?.path();
                 if path.extension() == Some(std::ffi::OsStr::new("json")) {
-                    println!(
-                        "{}",
-                        path.file_stem().unwrap().to_string_lossy()
-                    );
+                    found = true;
+                    println!("{}", path.file_stem().unwrap().to_string_lossy());
                 }
+            }
+            if !found{
+                return  Err(AppError::CampaignNotFound);
             }
         }
     }
